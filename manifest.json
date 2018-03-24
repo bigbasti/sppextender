@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+ 
+  "name": "SPP Affiliate Calculator",
+  "version": "0.1.0",
+  "description": "Provides cumulated affiliate coin values for SimplePosPool. Icon by www.freepik.com",
+
+  "icons": { "16": "calc_16.png",
+    "48": "calc_48.png",
+    "128": "calc_128.png" },
+ 
+  "content_scripts": [{
+    "css": ["content.css"],
+    "js": ["jquery-3.3.1.min.js", "big.min.js", "content.js"],
+    "matches": ["https://simplepospool.com/account/report/*"],
+    "run_at": "document_end"
+  }]
+ 
+}
