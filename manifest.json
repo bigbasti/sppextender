@@ -1,9 +1,9 @@
 {
   "manifest_version": 2,
  
-  "name": "SPP Affiliate Calculator",
-  "version": "0.1.0",
-  "description": "Provides cumulated affiliate coin values for SimplePosPool. Icon by www.freepik.com",
+  "name": "SPP Extender",
+  "version": "0.2.0",
+  "description": "Provides additional functionality for the SimplePosPool website",
 
   "icons": { "16": "calc_16.png",
     "48": "calc_48.png",
