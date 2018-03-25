@@ -108,6 +108,8 @@ window.onload = function(){
     }
 
     var btcPrice = 0;   //price for 1 BTC in USD
+    var portfolioValueUsd = 0;
+    var portfolioValueBtc = 0;
     function updateMissingPrices(){
         var tilePrices = $("#stats-slide div div p");
 
@@ -118,13 +120,24 @@ window.onload = function(){
                 var prices = tilePrices[i].offsetParent.children[2].innerText;
                 var parts = prices.split("/");
                 var match = prices.match("([0-9\.]+).+([0-9]+\.[0-9]+).+");
-                var usd = parts[0].match("([0-9\.]+).+")[1];
-                var btc = parts[1].match(".([0-9\.]+).+")[1];
-                var multiplicator = Big(1).div(Big(btc));
-                btcPrice = multiplicator.times(Big(usd)).toFixed(8).toString();
-                break;
+                try{
+                    var usd = parts[0].match("([0-9\.]+).+")[1];
+                    var btc = parts[1].match(".([0-9\.]+).+")[1];
+
+                    portfolioValueUsd = Big(portfolioValueUsd).plus(Big(usd)).toFixed(2).toString();
+                    portfolioValueBtc = Big(portfolioValueBtc).plus(Big(btc)).toFixed(8).toString();
+
+                    //calculate btc price only on first loop
+                    if(btcPrice === 0){
+                        var multiplicator = Big(1).div(Big(btc));
+                        btcPrice = multiplicator.times(Big(usd)).toFixed(8).toString();
+                    }
+                }catch(error){
+                    console.dir(error);
+                }
             }
         }
+        updateAndInsertPortfolioValue();
 
         //now loop through all tiles where the price is missing
         for(var i = 0; i < tilePrices.length; i++){
@@ -141,6 +154,20 @@ window.onload = function(){
     }
 
     /**
+     * Inserts the HTML snippet containing the portfolio value into the website
+     */
+    function updateAndInsertPortfolioValue(){
+        $(".portfolio").remove();
+        var div = document.createElement('div');
+        div.setAttribute("class", "text-center portfolio");
+        div.setAttribute("style", "margin-top:10px;")
+        div.innerHTML = '<div><strong>Portfolio Value</strong><br>' + portfolioValueUsd + ' USD<br>' + portfolioValueBtc + ' BTC</div>';
+
+        var profilePic = document.getElementsByClassName("profile clearfix")[0];
+        profilePic.appendChild(div);
+    }
+
+    /**
      * loads a the price for a coin from coinexchange in BTC
      */
     function loadAndUpdateCoinPriceFromCoinexchange(coin, tile){
@@ -154,6 +181,10 @@ window.onload = function(){
             var coinValueBtc = Big(lastPrice).times(Big(coinAmount)).toFixed(8).toString();
             var coinValueUsd = Big(coinValueBtc).times(Big(btcPrice)).toFixed(2).toString();
             tile.offsetParent.children[2].innerHTML = coinValueUsd + " USD / " + coinValueBtc + " BTC";
+
+            portfolioValueUsd = Big(portfolioValueUsd).plus(Big(coinValueUsd)).toFixed(2).toString();
+            portfolioValueBtc = Big(portfolioValueBtc).plus(Big(coinValueBtc)).toFixed(8).toString();
+            updateAndInsertPortfolioValue();
             return lastPrice;
         });
     }
