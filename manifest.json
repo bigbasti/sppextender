@@ -2,7 +2,7 @@
   "manifest_version": 2,
  
   "name": "SPP Extender",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "Provides additional functionality for the SimplePosPool website",
 
   "icons": { "16": "calc_16.png",

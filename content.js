@@ -160,8 +160,10 @@ window.onload = function(){
 
     var pageTitle = document.getElementsByClassName("x_title")[0];
 
-    pageTitle.appendChild(calcButton);
-    pageTitle.appendChild(backButton);
+    if(window.location.toString().indexOf("report") !== -1){
+        pageTitle.appendChild(calcButton);
+        pageTitle.appendChild(backButton);
+    }
 
     updateMissingPrices();
     //console.log("Ran successfully!");
