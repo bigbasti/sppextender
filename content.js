@@ -36,7 +36,6 @@ window.onload = function(){
      */
     function calculateSums(){
         var rows = $("table tr");
-        console.dir(rows.length);
         
         currencySums = {};
 
@@ -108,9 +107,62 @@ window.onload = function(){
         return currencySums[coin];
     }
 
+    var btcPrice = 0;   //price for 1 BTC in USD
+    function updateMissingPrices(){
+        var tilePrices = $("#stats-slide div div p");
+
+        //first run is to determine the price for BTC
+        for(var i = 0; i < tilePrices.length; i++){
+            var tilePrice = tilePrices[i].innerText;
+            if(tilePrice.match("0\.00000000") === null){
+                var prices = tilePrices[i].offsetParent.children[2].innerText;
+                var parts = prices.split("/");
+                var match = prices.match("([0-9\.]+).+([0-9]+\.[0-9]+).+");
+                var usd = parts[0].match("([0-9\.]+).+")[1];
+                var btc = parts[1].match(".([0-9\.]+).+")[1];
+                var multiplicator = Big(1).div(Big(btc));
+                btcPrice = multiplicator.times(Big(usd)).toFixed(8).toString();
+                break;
+            }
+        }
+
+        //now loop through all tiles where the price is missing
+        for(var i = 0; i < tilePrices.length; i++){
+            var tilePrice = tilePrices[i].innerText;
+            if(tilePrice.match("0\.00000000") !== null){
+                var match = tilePrices[i].offsetParent.children[1].innerText.match("[0-9\.]+ ([A-Z]+)");
+                if(match !== null){
+                    var coinName = match[1];
+                    //console.log("no price found for ", coinName);
+                    var lastPrice = loadAndUpdateCoinPriceFromCoinexchange(coinName, tilePrices[i]);
+                }
+            }
+        }
+    }
+
+    /**
+     * loads a the price for a coin from coinexchange in BTC
+     */
+    function loadAndUpdateCoinPriceFromCoinexchange(coin, tile){
+        $.get("https://www.coinexchange.io/market/" + coin + "/BTC", function(response){
+            var lastPrice = response.match("Last Price:.([0-9.]+).BTC")[1];
+            //console.log("last price for ", coin, " is ", lastPrice);
+            tile.offsetParent.children[3].innerHTML = "Last hour: " + lastPrice;
+
+            var coinAmount = tile.offsetParent.children[1].innerText.match("([0-9\.,]+) [A-Z]+")[1];
+            coinAmount = coinAmount.replace(/,/g, "")
+            var coinValueBtc = Big(lastPrice).times(Big(coinAmount)).toFixed(8).toString();
+            var coinValueUsd = Big(coinValueBtc).times(Big(btcPrice)).toFixed(2).toString();
+            tile.offsetParent.children[2].innerHTML = coinValueUsd + " USD / " + coinValueBtc + " BTC";
+            return lastPrice;
+        });
+    }
+
     var pageTitle = document.getElementsByClassName("x_title")[0];
 
     pageTitle.appendChild(calcButton);
     pageTitle.appendChild(backButton);
-    console.log("Ran successfully!");
+
+    updateMissingPrices();
+    //console.log("Ran successfully!");
 }
