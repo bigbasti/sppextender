@@ -143,7 +143,7 @@ window.onload = function(){
         for(var i = 0; i < tilePrices.length; i++){
             var tilePrice = tilePrices[i].innerText;
             if(tilePrice.match("0\.00000000") !== null){
-                var match = tilePrices[i].offsetParent.children[1].innerText.match("[0-9\.]+ ([A-Z]+)");
+                var match = tilePrices[i].offsetParent.children[1].innerText.match("[0-9\.]+ ([A-Z0-9]+)");
                 if(match !== null){
                     var coinName = match[1];
                     //console.log("no price found for ", coinName);
