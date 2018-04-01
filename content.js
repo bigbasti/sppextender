@@ -30,6 +30,11 @@ window.onload = function(){
      * Store all cumulated values for all read currencies
      */
     var currencySums = {};
+    
+    /**
+     * frue if there was at least one comission mismatch found
+     */
+    var comissionProblemsFound = false;
 
     /**
      * go through all commissions of the selected user and calculate cumulated values
@@ -42,14 +47,19 @@ window.onload = function(){
         for(var i = 1; i < rows.length; i++){
             var currentRow = rows[i];
             var coin = currentRow.cells[1].innerText
-            var userComission = currentRow.cells[5].innerText;
-            var affiliateEarnings = currentRow.cells[2].innerText;
+            var stakeAmount = currentRow.cells[2].innerText;
+            var percentage = currentRow.cells[3].innerText.match("([0-9]+)%")[1];
+            var sppComission = currentRow.cells[4].innerText;
+            var userComission = currentRow.cells[5].innerText.match("([0-9\.]+).*")[1];
+
+            var expectedUserComission = calculateExpectedComission(stakeAmount, percentage);
             
             var currencyValues = getOrCreateCoinSum(coin);
             currencyValues.sum = Big(currencyValues.sum).plus(Big(userComission)).toFixed(12).toString();
             currencyValues.count = Big(currencyValues.count).plus(1).toString();
+            currencyValues.expectedSum = Big(currencyValues.expectedSum).plus(Big(expectedUserComission)).toFixed(12).toString();
             currencyValues.average = Big(currencyValues.sum).div(Big(currencyValues.count)).toFixed(12).toString();
-            currencyValues.affiliateEarnings = Big(currencyValues.affiliateEarnings).plus(Big(affiliateEarnings)).toFixed(12).toString();
+            currencyValues.affiliateEarnings = Big(currencyValues.affiliateEarnings).plus(Big(stakeAmount)).toFixed(12).toString();
             currencySums[coin] = currencyValues;
         }
     }
@@ -69,17 +79,30 @@ window.onload = function(){
             var sppComission = currentRow.cells[4].innerText;
             var userComission = currentRow.cells[5].innerText;
 
-            var expectedUserComission = Big(stakeAmount).times(Big(0.03));
-            expectedUserComission = expectedUserComission.times(Big(percentage).div(Big(100)))
-                .round(10).toFixed(12).toString();
+            var expectedUserComission = calculateExpectedComission(stakeAmount, percentage);
 
             if(expectedUserComission !== userComission){
-                var difference = Big(expectedUserComission).minus(Big(userComission)).toFixed(12).toString();
-                if(Big(difference).gt(Big(0.00001)) || Big(difference).times(Big(-1)).gt(Big(0.00001))){
+                if(checkIfComissionDifferenceIsTooBig(expectedUserComission, userComission)){
+                    comissionProblemsFound = true;
                     currentRow.cells[5].innerHTML = userComission + "<br/>" + "<div style='color:red;'>The above comission calculated by SPP is wrong.<br/>Correct value should be " + expectedUserComission + "</div>"
                 }
             }
         }
+    }
+
+    function checkIfComissionDifferenceIsTooBig(expectedUserComission, userComission){
+        var difference = Big(expectedUserComission).minus(Big(userComission)).toFixed(12).toString();
+        if(Big(difference).gt(Big(0.00001)) || Big(difference).times(Big(-1)).gt(Big(0.00001))){
+            return true;
+        }
+        return false;
+    }
+
+    function calculateExpectedComission(stakeAmount, percentage){
+        var expectedUserComission = Big(stakeAmount).times(Big(0.03));
+        expectedUserComission = expectedUserComission.times(Big(percentage).div(Big(100)))
+            .round(10).toFixed(12).toString();
+        return expectedUserComission;
     }
 
     /**
@@ -110,7 +133,12 @@ window.onload = function(){
     function createTileForCoin(coinValues) {
         var div = document.createElement('div');
         div.setAttribute("class", "tile-stats col-lg-4 col-md-4");
-        div.innerHTML = '<div class="icon"><img src="' + coinValues.imageUrl + '" style="width:60px;"></div><div class="count uppercase">' + coinValues.sum + ' ' + coinValues.name + '</div><p>Affiliate Earnings: ' + coinValues.affiliateEarnings + '</p><p>Average comission: ' + coinValues.average + '</p><p>Total Comissions: ' + coinValues.count + '</p>';
+        var warningLabel = "";
+        if(checkIfComissionDifferenceIsTooBig(coinValues.expectedSum, coinValues.sum)){
+            warningLabel = "<p style='color:red;'>This coin contains wrongly calculated comissions. Total difference because of wrong comissions: " 
+                + Big(coinValues.expectedSum).minus(Big(coinValues.sum).toFixed(12).toString()) + "</p>";
+        }
+        div.innerHTML = '<div class="icon"><img src="' + coinValues.imageUrl + '" style="width:60px;"></div><div class="count uppercase">' + coinValues.sum + ' ' + coinValues.name + '</div><p>Affiliate Earnings: ' + coinValues.affiliateEarnings + '</p><p>Average comission: ' + coinValues.average + '</p><p>Total Comissions: ' + coinValues.count + '</p>' + warningLabel;
         return div; 
       }
 
@@ -125,6 +153,7 @@ window.onload = function(){
             currencySums[coin] = {
                 name: coin,
                 sum: 0,
+                expectedSum: 0,
                 count: 0,
                 average: 0,
                 affiliateEarnings: 0,
