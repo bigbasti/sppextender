@@ -55,6 +55,31 @@ window.onload = function(){
     }
 
     /**
+     * checks all comission values whether the comission was calculated correctly
+     * If not a warning will be shown next to the comission
+     */
+    function checkCommissionCalculations(){
+        var rows = $("table tr");
+        
+        for(var i = 1; i < rows.length; i++){
+            var currentRow = rows[i];
+            var coin = currentRow.cells[1].innerText
+            var stakeAmount = currentRow.cells[2].innerText;
+            var percentage = currentRow.cells[3].innerText.match("([0-9]+)%")[1];
+            var sppComission = currentRow.cells[4].innerText;
+            var userComission = currentRow.cells[5].innerText;
+
+            var expectedUserComission = Big(stakeAmount).times(Big(0.03));
+            expectedUserComission = expectedUserComission.times(Big(percentage).div(Big(100)))
+                .round(10).toFixed(12).toString();
+
+            if(expectedUserComission !== userComission){
+                currentRow.cells[5].innerHTML = userComission + "<br/>" + "<div style='color:red;'>The above comission calculated by SPP is wrong.<br/>Correct value should be " + expectedUserComission + "</div>"
+            }
+        }
+    }
+
+    /**
      * Create a container div and add a tile for each currency inside it.
      * Finally hide the affiliate table and display the created tiles.
      */
@@ -194,6 +219,7 @@ window.onload = function(){
     if(window.location.toString().indexOf("report") !== -1){
         pageTitle.appendChild(calcButton);
         pageTitle.appendChild(backButton);
+        checkCommissionCalculations();
     }
 
     updateMissingPrices();
