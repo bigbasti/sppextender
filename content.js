@@ -74,7 +74,10 @@ window.onload = function(){
                 .round(10).toFixed(12).toString();
 
             if(expectedUserComission !== userComission){
-                currentRow.cells[5].innerHTML = userComission + "<br/>" + "<div style='color:red;'>The above comission calculated by SPP is wrong.<br/>Correct value should be " + expectedUserComission + "</div>"
+                var difference = Big(expectedUserComission).minus(Big(userComission)).toFixed(12).toString();
+                if(Big(difference).gt(Big(0.00001)) || Big(difference).times(Big(-1)).gt(Big(0.00001))){
+                    currentRow.cells[5].innerHTML = userComission + "<br/>" + "<div style='color:red;'>The above comission calculated by SPP is wrong.<br/>Correct value should be " + expectedUserComission + "</div>"
+                }
             }
         }
     }
