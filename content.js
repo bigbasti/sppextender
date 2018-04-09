@@ -27,6 +27,25 @@ window.onload = function(){
     });
 
     /**
+     * define which exchange to use for which coin
+     */
+    var coinExchanges = {
+        "DVRS": loadAndUpdateCoinPriceFromCoinexchange,
+        "KB3": loadAndUpdateCoinPriceFromCoinexchange,
+        "LAMBO": loadAndUpdateCoinPriceFromCoinexchange,
+        "NMD": loadAndUpdateCoinPriceFromCoinexchange,
+        "EXTN": loadAndUpdateCoinPriceFromCoinexchange,
+        "BWS": loadAndUpdateCoinPriceFromCoinlib,
+        "VARIUS": loadAndUpdateCoinPriceFromCoinlib,
+        "VTAR": loadAndUpdateCoinPriceFromCoinlib,
+        "CROP": loadAndUpdateCoinPriceFromCoinlib,
+        "SPD": loadAndUpdateCoinPriceFromCoinlib,
+        "ROE": loadAndUpdateCoinPriceFromCoinlib,
+        "OLMP": loadAndUpdateCoinPriceFromCoinlib,
+        "CBS": loadAndUpdateCoinPriceFromCoinlib
+    }
+
+    /**
      * Store all cumulated values for all read currencies
      */
     var currencySums = {};
@@ -190,7 +209,7 @@ window.onload = function(){
                         btcPrice = multiplicator.times(Big(usd)).toFixed(8).toString();
                     }
                 }catch(error){
-                    console.dir(error);
+                    //console.dir(error);
                 }
             }
         }
@@ -200,11 +219,19 @@ window.onload = function(){
         for(var i = 0; i < tilePrices.length; i++){
             var tilePrice = tilePrices[i].innerText;
             if(tilePrice.match("0\.00000000") !== null){
-                var match = tilePrices[i].offsetParent.children[1].innerText.match("[0-9\.]+ ([A-Z0-9]+)");
-                if(match !== null){
-                    var coinName = match[1];
-                    //console.log("no price found for ", coinName);
-                    var lastPrice = loadAndUpdateCoinPriceFromCoinexchange(coinName, tilePrices[i]);
+                try{
+                    var priceIndex = 1;     //staked coin
+                    if(tilePrices[i].offsetParent.children.length === 5){ 
+                        priceIndex = 2;     //masternode
+                    }
+                    var match = tilePrices[i].offsetParent.children[priceIndex].innerText.match("[0-9\.]+ ([A-Z0-9]+)");
+                    if(match !== null){
+                        var coinName = match[1];
+                        //console.log("no price found for ", coinName);
+                        var lastPrice = coinExchanges[coinName](coinName, tilePrices[i]);
+                    }
+                }catch(error){
+                    //console.dir(error);
                 }
             }
         }
@@ -238,6 +265,48 @@ window.onload = function(){
             var coinValueBtc = Big(lastPrice).times(Big(coinAmount)).toFixed(8).toString();
             var coinValueUsd = Big(coinValueBtc).times(Big(btcPrice)).toFixed(2).toString();
             tile.offsetParent.children[2].innerHTML = coinValueUsd + " USD / " + coinValueBtc + " BTC";
+
+            portfolioValueUsd = Big(portfolioValueUsd).plus(Big(coinValueUsd)).toFixed(2).toString();
+            portfolioValueBtc = Big(portfolioValueBtc).plus(Big(coinValueBtc)).toFixed(8).toString();
+            updateAndInsertPortfolioValue();
+            return lastPrice;
+        });
+    }
+
+    /**
+     * loads a the price for a coin from coinlib in BTC
+     */
+    function loadAndUpdateCoinPriceFromCoinlib(coin, tile){
+        $.get("https://coinlib.io/coin/" + coin + "/", function(response){
+            //coinlib.io behaves somewhat strage so maybe more than one try is required
+            var priceMatch = response.match("&#3647;&nbsp;([0-9.]+)");
+            if(priceMatch === null){
+                priceMatch = response.match("coin-price.*BTC ([0-9.]+)");
+            }
+            if(priceMatch === null){
+                //something wrong
+                console.log("PLEASE SEND THE FOLLOWING LOG MESSAGE COMPLETELY TO THE DEVELOPER TO RESOLVE THE ERROR:");
+                console.dir(priceMatch);
+            }
+
+            var lastPrice = priceMatch[1];
+            //console.log("last price for ", coin, " is ", lastPrice);
+            if(tile.offsetParent.children[0].innerHTML.match("Masternode") === null){
+                tile.offsetParent.children[3].innerHTML = "Last hour: " + lastPrice;
+            }else{
+                tile.offsetParent.children[4].innerHTML = "Last hour: " + lastPrice;
+            }
+            
+
+            var priceIndex = 1;     //staked coin
+            if(tile.offsetParent.children.length === 5){ 
+                priceIndex = 2;     //masternode
+            }
+            var coinAmount = tile.offsetParent.children[priceIndex].innerText.match("([0-9\.,]+) [A-Z]+")[1];
+            coinAmount = coinAmount.replace(/,/g, "")
+            var coinValueBtc = Big(lastPrice).times(Big(coinAmount)).toFixed(8).toString();
+            var coinValueUsd = Big(coinValueBtc).times(Big(btcPrice)).toFixed(2).toString();
+            tile.offsetParent.children[priceIndex+1].innerHTML = coinValueUsd + " USD / " + coinValueBtc + " BTC";
 
             portfolioValueUsd = Big(portfolioValueUsd).plus(Big(coinValueUsd)).toFixed(2).toString();
             portfolioValueBtc = Big(portfolioValueBtc).plus(Big(coinValueBtc)).toFixed(8).toString();
