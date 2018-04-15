@@ -13,7 +13,7 @@ window.onload = function(){
     $(backButton).hide();   //hide initially, only display after calcButton was clicked
 
     var createChartButton = document.createElement("a");
-    var createChartButtonText = document.createTextNode("Calculate Affiliate Overview");
+    var createChartButtonText = document.createTextNode("Calculate Affiliate Overview (BETA)");
     createChartButton.appendChild(createChartButtonText);
     createChartButton.setAttribute("href", "#");
     createChartButton.setAttribute("class", "btn btn-default");
@@ -342,8 +342,9 @@ window.onload = function(){
                 count: 0,
                 average: 0,
                 affiliateEarnings: 0,
+                users: [],
                 imageUrl: "https://simplepospool.com/account/images/coins/" + coin + ".png",
-                history: [] //{date: moment, amount: big}
+                history: [] //{date: moment, amount: big, username: string}
             };
             //console.log("added coin ", coin);
         }
@@ -375,8 +376,16 @@ window.onload = function(){
         if(startFrom < urlsToLoad.length){
             $.get("https://simplepospool.com/account/" + urlsToLoad[startFrom], function(response){
 
-                var regexTrSplit = "<tr><td>([ :0-9-]+)</td><td>([0-9a-zA-Z]+)</td><td>([0-9\.]+)</td><td>([0-9%]+)</td><td>([0-9\.]+)</td><td>([0-9\.]+)</td></tr>";
+                var usernameRegex = "<h2>Details about ([a-zA-Z0-9\._]+)</h2>";
+                var regexTrSplit = "<tr><td>([ :0-9-]+)</td><td>([0-9a-zA-Z]+)</td><td>([0-9\.A-Z-]+)</td><td>([0-9%]+)</td><td>([0-9\.A-Z-]+)</td><td>([0-9\.A-Z-]+)</td></tr>";
                 
+                var affiliateUserName = "";
+                try{
+                    affiliateUserName = response.match(usernameRegex)[1];
+                }catch(error){
+                    console.log("could not read username for", urlsToLoad[startFrom]);
+                }
+
                 var regex = new RegExp(regexTrSplit, 'g');
                 var match;
                 while(match = regex.exec(response)) {
@@ -390,11 +399,14 @@ window.onload = function(){
                         var userComission = match[6];
     
                         var coinHistory = getOrCreateCoinForHistory(coin);
+                        if($.inArray(affiliateUserName, coinHistory.users) < 0){
+                            coinHistory.users.push(affiliateUserName);
+                        }
                         coinHistory.sum = Big(coinHistory.sum).plus(Big(userComission)).toFixed(12).toString();
                         coinHistory.count = Big(coinHistory.count).plus(1).toString();
                         coinHistory.average = Big(coinHistory.sum).div(Big(coinHistory.count)).toFixed(12).toString();
                         coinHistory.affiliateEarnings = Big(coinHistory.affiliateEarnings).plus(Big(stake)).toFixed(12).toString();
-                        coinHistory.history.push({date: date, amount: userComission});
+                        coinHistory.history.push({date: date, amount: userComission, username: affiliateUserName, affAddress: urlsToLoad[startFrom]});
                         coinHistoryData[coin] = coinHistory;
                     }catch(exception){
                         console.dir(exception);
@@ -443,17 +455,20 @@ window.onload = function(){
         div.setAttribute("class", "referral-table-sums");
         div.setAttribute("style", "margin-top:10px;")
 
-        var table_head = "<table class='ref-overview-table'><thead><th>&nbsp;</th><th>Coin</th><th>Earned Amount</th></thead><tbody>";
+        var table_head = "<table class='ref-overview-table'><thead><th>&nbsp;</th><th>Coin</th><th>Earned Amount</th><th>From # users</th></thead><tbody>";
         var table_content = "";
         var table_footer = "</tbody></table>";
         Object.keys(coinHistoryData).forEach(function(key,index) {
             // key: the name of the object key
             // index: the ordinal position of the key within the object 
             currencyValues = coinHistoryData[key];
-            table_content = table_content + '<tr><td><img src="' + currencyValues.imageUrl + '" style="width:32px;"></td><td>' + currencyValues.name + '</td><td>' + currencyValues.sum + '</td></tr>';
+            table_content = table_content + '<tr><td><img src="' + currencyValues.imageUrl + 
+                '" style="width:32px;"></td><td>' + currencyValues.name + 
+                '</td><td>' + currencyValues.sum + '</td><td>' + currencyValues.users.length + '</td></tr>';
         });
         div.innerHTML = '<div>' + table_head + table_content + table_footer + '</div>';
         pageTitle.appendChild(div);
+        $(".ref-overview-table").DataTable();
     }
 
     var pageTitle = document.getElementsByClassName("x_title")[0];
