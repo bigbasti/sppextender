@@ -3,14 +3,23 @@ window.onload = function(){
     var calcButtonText = document.createTextNode("Calculate Sums For this Affiliate");
     calcButton.appendChild(calcButtonText);
     calcButton.setAttribute("href", "#");
+    calcButton.setAttribute("class", "btn btn-default");
     
     var backButton = document.createElement("a");
     var backButtonText = document.createTextNode("Back to table view");
     backButton.appendChild(backButtonText);
     backButton.setAttribute("href", "#");
+    backButton.setAttribute("class", "btn btn-default");
     $(backButton).hide();   //hide initially, only display after calcButton was clicked
 
+    var createChartButton = document.createElement("a");
+    var createChartButtonText = document.createTextNode("Calculate Affiliate Overview");
+    createChartButton.appendChild(createChartButtonText);
+    createChartButton.setAttribute("href", "#");
+    createChartButton.setAttribute("class", "btn btn-default");
+
     var tilesDiv = null;
+    var alliliateChartDiv = null;
 
     $(calcButton).click(function(e){
         e.preventDefault();
@@ -24,6 +33,12 @@ window.onload = function(){
         $(backButton).hide();
         $(calcButton).show();
         $(tilesDiv).remove();
+    });
+
+    $(createChartButton).click(function(e){
+        e.preventDefault();
+        $(createChartButton).hide();
+        createHistory();
     });
 
     /**
@@ -315,7 +330,137 @@ window.onload = function(){
         });
     }
 
+    var coinHistoryData = {};
+    var refferals = 0;
+    var refsLoaded = 0;
+    function getOrCreateCoinForHistory(coin){
+        if(coinHistoryData[coin] === undefined){
+            //coin must be created
+            coinHistoryData[coin] = {
+                name: coin,
+                sum: 0,
+                count: 0,
+                average: 0,
+                affiliateEarnings: 0,
+                imageUrl: "https://simplepospool.com/account/images/coins/" + coin + ".png",
+                history: [] //{date: moment, amount: big}
+            };
+            //console.log("added coin ", coin);
+        }
+        return coinHistoryData[coin];
+    }
+
+    function createHistory(){
+        var rows = $("table tr");
+        var urlsToLoad = [];
+        
+        //extract all affiliate urls from overview
+        for(var i = 1; i < rows.length; i++){
+            var currentRow = rows[i];
+            if(currentRow.cells.length > 1){    //ignore level separators  
+                var refUri = currentRow.attributes[0].textContent;
+                urlsToLoad.push(refUri);
+            }
+        }
+        refferals = urlsToLoad.length;
+
+        //load the affiliate sites and extract data
+        loadAndProcessNextHistoryBatch(0, urlsToLoad);
+
+        //google.charts.load('current', {packages: ['corechart']});
+        //google.charts.setOnLoadCallback(drawChart);
+    }
+
+    function loadAndProcessNextHistoryBatch(startFrom, urlsToLoad){
+        if(startFrom < urlsToLoad.length){
+            $.get("https://simplepospool.com/account/" + urlsToLoad[startFrom], function(response){
+
+                var regexTrSplit = "<tr><td>([ :0-9-]+)</td><td>([0-9a-zA-Z]+)</td><td>([0-9\.]+)</td><td>([0-9%]+)</td><td>([0-9\.]+)</td><td>([0-9\.]+)</td></tr>";
+                
+                var regex = new RegExp(regexTrSplit, 'g');
+                var match;
+                while(match = regex.exec(response)) {
+                    //var match = response.match(regexTrSplit);
+                    try{
+                        var date = moment(match[1]);
+                        var coin = match[2];
+                        var stake = match[3];
+                        var percentage = match[4];
+                        var sppComission = match[5];
+                        var userComission = match[6];
+    
+                        var coinHistory = getOrCreateCoinForHistory(coin);
+                        coinHistory.sum = Big(coinHistory.sum).plus(Big(userComission)).toFixed(12).toString();
+                        coinHistory.count = Big(coinHistory.count).plus(1).toString();
+                        coinHistory.average = Big(coinHistory.sum).div(Big(coinHistory.count)).toFixed(12).toString();
+                        coinHistory.affiliateEarnings = Big(coinHistory.affiliateEarnings).plus(Big(stake)).toFixed(12).toString();
+                        coinHistory.history.push({date: date, amount: userComission});
+                        coinHistoryData[coin] = coinHistory;
+                    }catch(exception){
+                        console.dir(exception);
+                    }
+                }
+                
+                
+                console.log(urlsToLoad[startFrom], " finished!");
+                refsLoaded = startFrom;
+                updateCoinHitroyDisplay();
+                loadAndProcessNextHistoryBatch(startFrom+1, urlsToLoad);
+            });
+        }else{
+            //all urls loaded
+            $(".ref-loading").remove();
+            $(".sums-for-chart").remove();
+            console.log("All refs loaded");
+            createAndDisplayRefTable();
+        }
+    }
+
+    function updateCoinHitroyDisplay(){
+        $(".sums-for-chart").remove();
+        var div = document.createElement('div');
+        div.setAttribute("class", "sums-for-chart");
+        div.setAttribute("style", "margin-top:10px;")
+
+        contentText = "";
+        var percentLoaded = 0;
+        var progressbar = '<div class="progress ref-loading"><div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="_progress_" aria-valuemin="0" aria-valuemax="100" style="width: _progress_%"><span class="sr-only">_progress_% Complete</span></div></div>';
+        Object.keys(coinHistoryData).forEach(function(key,index) {
+            // key: the name of the object key
+            // index: the ordinal position of the key within the object 
+            percentLoaded = Big(refsLoaded).div(Big(refferals)).times(Big(100)).toFixed(0).toString();
+            currencyValues = coinHistoryData[key];
+            contentText = contentText + "<br/><strong>" + currencyValues.name + ":</strong>&nbsp;" + currencyValues.sum;
+        });
+        progressbar = progressbar.replace(/_progress_/g , percentLoaded);
+        div.innerHTML = '<div>' + progressbar + '<p/>' + contentText + '</div>';
+        pageTitle.appendChild(div);
+    }
+
+    function createAndDisplayRefTable(){
+        $(".referral-table-sums").remove();
+        var div = document.createElement('div');
+        div.setAttribute("class", "referral-table-sums");
+        div.setAttribute("style", "margin-top:10px;")
+
+        var table_head = "<table class='ref-overview-table'><thead><th>&nbsp;</th><th>Coin</th><th>Earned Amount</th></thead><tbody>";
+        var table_content = "";
+        var table_footer = "</tbody></table>";
+        Object.keys(coinHistoryData).forEach(function(key,index) {
+            // key: the name of the object key
+            // index: the ordinal position of the key within the object 
+            currencyValues = coinHistoryData[key];
+            table_content = table_content + '<tr><td><img src="' + currencyValues.imageUrl + '" style="width:32px;"></td><td>' + currencyValues.name + '</td><td>' + currencyValues.sum + '</td></tr>';
+        });
+        div.innerHTML = '<div>' + table_head + table_content + table_footer + '</div>';
+        pageTitle.appendChild(div);
+    }
+
     var pageTitle = document.getElementsByClassName("x_title")[0];
+
+    if(window.location.toString().indexOf("affiliates") !== -1){
+        pageTitle.appendChild(createChartButton);
+    }
 
     if(window.location.toString().indexOf("report") !== -1){
         pageTitle.appendChild(calcButton);
@@ -324,5 +469,5 @@ window.onload = function(){
     }
 
     updateMissingPrices();
-    //console.log("Ran successfully!");
+    console.log("SPP Extender Ran successfully!");
 }
