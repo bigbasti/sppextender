@@ -9,6 +9,8 @@ Features
 - Calculate and display the total value of the users crypto portfolio
 - Check every comission calculated by SPP and display a warning if something is wrong
 - Display a warning in the sum overview if wrongly calculated comissions were detected
+- Calculate total earned coin throug referrals across all your affiliates
+- Extends the affiliate overview and shows which affiliate stakes which coins (and who is inactive)
 - more to come...
 
 Installation

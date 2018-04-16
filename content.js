@@ -330,6 +330,7 @@ window.onload = function(){
         });
     }
 
+    var referralCoins = {};
     var coinHistoryData = {};
     var refferals = 0;
     var refsLoaded = 0;
@@ -350,7 +351,19 @@ window.onload = function(){
         }
         return coinHistoryData[coin];
     }
+    function addCoinToReferral(username, coin, icon){
+        if(referralCoins[username] === undefined){
+            //create new entry
+            referralCoins[username] = {
+                coins: []   //{name: coin, icon: url}
+            }
+        }
+        if($.inArray(icon, referralCoins[username].coins) < 0){
+            referralCoins[username].coins.push(icon);
+        }
+    }
 
+    var affiliateTableRows = [];
     function createHistory(){
         var rows = $("table tr");
         var urlsToLoad = [];
@@ -361,6 +374,7 @@ window.onload = function(){
             if(currentRow.cells.length > 1){    //ignore level separators  
                 var refUri = currentRow.attributes[0].textContent;
                 urlsToLoad.push(refUri);
+                affiliateTableRows.push(currentRow);
             }
         }
         refferals = urlsToLoad.length;
@@ -376,7 +390,7 @@ window.onload = function(){
         if(startFrom < urlsToLoad.length){
             $.get("https://simplepospool.com/account/" + urlsToLoad[startFrom], function(response){
 
-                var usernameRegex = "<h2>Details about ([a-zA-Z0-9\._]+)</h2>";
+                var usernameRegex = "<h2>Details about ([a-zA-Z0-9\._-]+)</h2>";
                 var regexTrSplit = "<tr><td>([ :0-9-]+)</td><td>([0-9a-zA-Z]+)</td><td>([0-9\.A-Z-]+)</td><td>([0-9%]+)</td><td>([0-9\.A-Z-]+)</td><td>([0-9\.A-Z-]+)</td></tr>";
                 
                 var affiliateUserName = "";
@@ -397,7 +411,7 @@ window.onload = function(){
                         var percentage = match[4];
                         var sppComission = match[5];
                         var userComission = match[6];
-    
+
                         var coinHistory = getOrCreateCoinForHistory(coin);
                         if($.inArray(affiliateUserName, coinHistory.users) < 0){
                             coinHistory.users.push(affiliateUserName);
@@ -408,13 +422,14 @@ window.onload = function(){
                         coinHistory.affiliateEarnings = Big(coinHistory.affiliateEarnings).plus(Big(stake)).toFixed(12).toString();
                         coinHistory.history.push({date: date, amount: userComission, username: affiliateUserName, affAddress: urlsToLoad[startFrom]});
                         coinHistoryData[coin] = coinHistory;
+
+                        addCoinToReferral(affiliateUserName, coin, coinHistory.imageUrl);
                     }catch(exception){
                         console.dir(exception);
                     }
                 }
                 
-                
-                console.log(urlsToLoad[startFrom], " finished!");
+                //console.log(urlsToLoad[startFrom], " finished!");
                 refsLoaded = startFrom;
                 updateCoinHitroyDisplay();
                 loadAndProcessNextHistoryBatch(startFrom+1, urlsToLoad);
@@ -425,6 +440,7 @@ window.onload = function(){
             $(".sums-for-chart").remove();
             console.log("All refs loaded");
             createAndDisplayRefTable();
+            displayCoinsperReferrer();
         }
     }
 
@@ -455,7 +471,7 @@ window.onload = function(){
         div.setAttribute("class", "referral-table-sums");
         div.setAttribute("style", "margin-top:10px;")
 
-        var table_head = "<table class='ref-overview-table'><thead><th>&nbsp;</th><th>Coin</th><th>Earned Amount</th><th>From # users</th></thead><tbody>";
+        var table_head = "<table class='ref-overview-table table table-striped'><thead><th>&nbsp;</th><th>Coin</th><th>Earned Amount</th><th>From # users</th></thead><tbody>";
         var table_content = "";
         var table_footer = "</tbody></table>";
         Object.keys(coinHistoryData).forEach(function(key,index) {
@@ -469,6 +485,24 @@ window.onload = function(){
         div.innerHTML = '<div>' + table_head + table_content + table_footer + '</div>';
         pageTitle.appendChild(div);
         $(".ref-overview-table").DataTable();
+    }
+
+    function displayCoinsperReferrer(){
+        for(var i = 0; i < affiliateTableRows.length; i ++){
+            var currentRow = affiliateTableRows[i];
+            try {
+                var username = currentRow.cells[0].innerHTML.match("#[0-9]+ ([a-zA-Z0-9\._-]+)")[1];
+                var html = username + "<br/>";
+                for(var j = 0; j < referralCoins[username].coins.length; j++){
+                    var currentCoin = referralCoins[username].coins[j];
+                    html = html + '<img src="' + currentCoin + '" style="width:24px;">';
+                }
+                currentRow.cells[0].innerHTML = html;
+            }catch(error){
+                //console.log("error for", currentRow);
+                //console.dir(error);
+            }
+        }
     }
 
     var pageTitle = document.getElementsByClassName("x_title")[0];
