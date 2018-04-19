@@ -71,6 +71,11 @@ window.onload = function(){
     var comissionProblemsFound = false;
 
     /**
+     * Store the prices for the coins
+     */
+    var coinPrices = {};
+
+    /**
      * go through all commissions of the selected user and calculate cumulated values
      */
     function calculateSums(){
@@ -208,12 +213,25 @@ window.onload = function(){
         for(var i = 0; i < tilePrices.length; i++){
             var tilePrice = tilePrices[i].innerText;
             if(tilePrice.match("0\.00000000") === null){
+                var priceIndex = 1;     //staked coin
+                if(tilePrices[i].offsetParent.children.length === 5){ 
+                    priceIndex = 2;     //masternode
+                }
+
                 var prices = tilePrices[i].offsetParent.children[2].innerText;
                 var parts = prices.split("/");
                 var match = prices.match("([0-9\.]+).+([0-9]+\.[0-9]+).+");
                 try{
                     var usd = parts[0].match("([0-9\.]+).+")[1];
                     var btc = parts[1].match(".([0-9\.]+).+")[1];
+
+                    var coinName = "";
+                    var coinAmount = 0;
+                    var match = tilePrices[i].offsetParent.children[priceIndex].innerText.match("([0-9\.,]+) ([A-Z0-9]+)");
+                    if(match !== null){
+                        coinName = match[2];
+                        coinAmount = Big(match[1].replace(/,/g, "")).toFixed(12).toString();
+                    }
 
                     portfolioValueUsd = Big(portfolioValueUsd).plus(Big(usd)).toFixed(2).toString();
                     portfolioValueBtc = Big(portfolioValueBtc).plus(Big(btc)).toFixed(8).toString();
@@ -223,6 +241,11 @@ window.onload = function(){
                         var multiplicator = Big(1).div(Big(btc));
                         btcPrice = multiplicator.times(Big(usd)).toFixed(8).toString();
                     }
+
+                    var priceInfo = getOrCreateCoinForPrices(coinName);
+                    priceInfo.usd = Big(usd).div(Big(coinAmount)).toFixed(5).toString();
+                    priceInfo.btc = Big(btc).div(Big(coinAmount)).toFixed(9).toString();
+                    coinPrices[coinName] = priceInfo;
                 }catch(error){
                     //console.dir(error);
                 }
@@ -281,6 +304,11 @@ window.onload = function(){
             var coinValueUsd = Big(coinValueBtc).times(Big(btcPrice)).toFixed(2).toString();
             tile.offsetParent.children[2].innerHTML = coinValueUsd + " USD / " + coinValueBtc + " BTC";
 
+            var priceInfo = getOrCreateCoinForPrices(coin);
+            priceInfo.usd = Big(coinValueUsd).div(Big(coinAmount)).toFixed(5).toString();
+            priceInfo.btc = Big(coinValueBtc).div(Big(coinAmount)).toFixed(9).toString();
+            coinPrices[coin] = priceInfo;
+
             portfolioValueUsd = Big(portfolioValueUsd).plus(Big(coinValueUsd)).toFixed(2).toString();
             portfolioValueBtc = Big(portfolioValueBtc).plus(Big(coinValueBtc)).toFixed(8).toString();
             updateAndInsertPortfolioValue();
@@ -323,6 +351,11 @@ window.onload = function(){
             var coinValueUsd = Big(coinValueBtc).times(Big(btcPrice)).toFixed(2).toString();
             tile.offsetParent.children[priceIndex+1].innerHTML = coinValueUsd + " USD / " + coinValueBtc + " BTC";
 
+            var priceInfo = getOrCreateCoinForPrices(coin);
+            priceInfo.usd = Big(coinValueUsd).div(Big(coinAmount)).toFixed(5).toString();
+            priceInfo.btc = Big(coinValueBtc).div(Big(coinAmount)).toFixed(9).toString();
+            coinPrices[coin] = priceInfo;
+
             portfolioValueUsd = Big(portfolioValueUsd).plus(Big(coinValueUsd)).toFixed(2).toString();
             portfolioValueBtc = Big(portfolioValueBtc).plus(Big(coinValueBtc)).toFixed(8).toString();
             updateAndInsertPortfolioValue();
@@ -330,10 +363,26 @@ window.onload = function(){
         });
     }
 
-    var referralCoins = {};
-    var coinHistoryData = {};
-    var refferals = 0;
-    var refsLoaded = 0;
+    /**
+     * If coinProces already contain the coin, return the coin
+     * otherwise create the coin object
+     * @param {string} coin 
+     */
+    function getOrCreateCoinForPrices(coin){
+        if(coinPrices[coin] === undefined){
+            //coin must be created
+            coinPrices[coin] = {
+                btc: "0",
+                usd: "0"
+            };
+        }
+        return coinPrices[coin];
+    }
+
+    var referralCoins = {};     //All affiliates and the coins they're staking
+    var coinHistoryData = {};   //stakes of all users with date
+    var refferals = 0;          //total number of referrals
+    var refsLoaded = 0;         //number of the referalls which have been loaded in history
     function getOrCreateCoinForHistory(coin){
         if(coinHistoryData[coin] === undefined){
             //coin must be created
@@ -351,6 +400,16 @@ window.onload = function(){
         }
         return coinHistoryData[coin];
     }
+
+    /**
+     * Checks if the referralCoins Object already has the given user.
+     * If not the user is added to the object and the uri to the coins icon
+     * is added to the array.
+     * Target: Create a list of all users with an array of the coins they're staking
+     * @param {string} username 
+     * @param {string} coin 
+     * @param {uri} icon 
+     */
     function addCoinToReferral(username, coin, icon){
         if(referralCoins[username] === undefined){
             //create new entry
@@ -363,7 +422,11 @@ window.onload = function(){
         }
     }
 
-    var affiliateTableRows = [];
+    var affiliateTableRows = [];    //array of the referrals represented as a row
+    /**
+     * Starts the execution of the history reader which loades the referral overview of
+     * each ref and extracts the staking information from it
+     */
     function createHistory(){
         var rows = $("table tr");
         var urlsToLoad = [];
@@ -381,11 +444,13 @@ window.onload = function(){
 
         //load the affiliate sites and extract data
         loadAndProcessNextHistoryBatch(0, urlsToLoad);
-
-        //google.charts.load('current', {packages: ['corechart']});
-        //google.charts.setOnLoadCallback(drawChart);
     }
 
+    /**
+     * Recursively load the next referral from the array
+     * @param {int} startFrom the index for the next url from the array
+     * @param {array[string]} urlsToLoad 
+     */
     function loadAndProcessNextHistoryBatch(startFrom, urlsToLoad){
         if(startFrom < urlsToLoad.length){
             $.get("https://simplepospool.com/account/" + urlsToLoad[startFrom], function(response){
@@ -398,6 +463,7 @@ window.onload = function(){
                     affiliateUserName = response.match(usernameRegex)[1];
                 }catch(error){
                     console.log("could not read username for", urlsToLoad[startFrom]);
+                    progressbarColor = "-danger";
                 }
 
                 var regex = new RegExp(regexTrSplit, 'g');
@@ -431,8 +497,8 @@ window.onload = function(){
                 
                 //console.log(urlsToLoad[startFrom], " finished!");
                 refsLoaded = startFrom;
-                updateCoinHitroyDisplay();
-                loadAndProcessNextHistoryBatch(startFrom+1, urlsToLoad);
+                updateCoinHitroyDisplay();                                  //display temp results
+                loadAndProcessNextHistoryBatch(startFrom+1, urlsToLoad);    //process next url
             });
         }else{
             //all urls loaded
@@ -444,6 +510,10 @@ window.onload = function(){
         }
     }
 
+    var progressbarColor = "";  //epmty -> everything ok '-danger' -> errors while loading
+    /**
+     * displays the freshly calculated total sums of the coins received from all refs
+     */
     function updateCoinHitroyDisplay(){
         $(".sums-for-chart").remove();
         var div = document.createElement('div');
@@ -452,7 +522,7 @@ window.onload = function(){
 
         contentText = "";
         var percentLoaded = 0;
-        var progressbar = '<div class="progress ref-loading"><div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="_progress_" aria-valuemin="0" aria-valuemax="100" style="width: _progress_%"><span class="sr-only">_progress_% Complete</span></div></div>';
+        var progressbar = '<div class="progress ref-loading"><div class="progress-bar' + progressbarColor + ' progress-bar-striped active" role="progressbar" aria-valuenow="_progress_" aria-valuemin="0" aria-valuemax="100" style="width: _progress_%"><span class="sr-only">_progress_% Complete</span></div></div>';
         Object.keys(coinHistoryData).forEach(function(key,index) {
             // key: the name of the object key
             // index: the ordinal position of the key within the object 
@@ -465,28 +535,142 @@ window.onload = function(){
         pageTitle.appendChild(div);
     }
 
+    /**
+     * creates a HTML DataTable and displays the results from the calculation of all refs
+     */
     function createAndDisplayRefTable(){
         $(".referral-table-sums").remove();
         var div = document.createElement('div');
         div.setAttribute("class", "referral-table-sums");
         div.setAttribute("style", "margin-top:10px;")
 
-        var table_head = "<table class='ref-overview-table table table-striped'><thead><th>&nbsp;</th><th>Coin</th><th>Earned Amount</th><th>From # users</th></thead><tbody>";
+        var table_head = "<table class='ref-overview-table table table-striped'><thead><th>&nbsp;</th><th>Coin</th><th>Earned Amount</th><th>Value of coins</th><th>From # users</th><th>Actions</th></thead><tbody>";
         var table_content = "";
         var table_footer = "</tbody></table>";
         Object.keys(coinHistoryData).forEach(function(key,index) {
             // key: the name of the object key
             // index: the ordinal position of the key within the object 
-            currencyValues = coinHistoryData[key];
+            var currencyValues = coinHistoryData[key];
+
+            var graphButton = document.createElement("a");
+            var graphButtonText = document.createTextNode("Show Graph");
+            graphButton.appendChild(graphButtonText);
+            graphButton.setAttribute("href", "#");
+            graphButton.setAttribute("data-coin", currencyValues.name);
+            graphButton.setAttribute("class", "btn btn-default graph-button");
+            
+            var coinPriceBtc = "n / a";
+            var coinPriceUsd = "n / a";
+            if(coinPrices[currencyValues.name.toUpperCase()] !== undefined){
+                coinPriceBtc = Big(coinPrices[currencyValues.name.toUpperCase()].btc).times(Big(currencyValues.sum)).toFixed(6).toString();
+                coinPriceUsd = Big(coinPrices[currencyValues.name.toUpperCase()].usd).times(Big(currencyValues.sum)).toFixed(6).toString();
+            }
+            
             table_content = table_content + '<tr><td><img src="' + currencyValues.imageUrl + 
                 '" style="width:32px;"></td><td>' + currencyValues.name + 
-                '</td><td>' + currencyValues.sum + '</td><td>' + currencyValues.users.length + '</td></tr>';
+                '</td><td>' + currencyValues.sum + '</td><td>' + coinPriceUsd + ' USD<br/>' + coinPriceBtc + ' BTC</td><td>' + currencyValues.users.length + '</td><td id="coin-td-' + currencyValues.name + '-target">' + graphButton.outerHTML + '</td></tr>';
         });
         div.innerHTML = '<div>' + table_head + table_content + table_footer + '</div>';
         pageTitle.appendChild(div);
+
+        $(".graph-button").click(function(e){
+            e.preventDefault();
+            var coinName = $(this).data("coin");
+            $(this).hide();
+            var ctx = document.getElementById('coin-td-' + coinName + '-target');
+            ctx.innerHTML = '<canvas id="' + coinName + '-target" width="800" height="300"></canvas>';
+            CreateGraphForCoin(coinName);
+        });
+
         $(".ref-overview-table").DataTable();
     }
 
+    /**
+     * create and display a google chart for the given
+     * coins referral history
+     * @param {string} coin 
+     */
+    function CreateGraphForCoin(coin){
+        var coinSumsByDay = {};
+
+        //first we need to calculate daily sums for the coin
+        for(var i = 0; i < coinHistoryData[coin].history.length; i++){
+            var historyEntry = coinHistoryData[coin].history[i];    //{date: moment, amount: big, username: string}
+            var date = historyEntry.date.unix();
+            if(coinSumsByDay[date] === undefined){
+                //coin must be created
+                coinSumsByDay[date] = {
+                    sum: 0,
+                    stakes: 0
+                };
+            }
+            var coinSum = coinSumsByDay[date];
+            coinSum.sum = Big(coinSum.sum).plus(Big(historyEntry.amount)).toFixed(12).toString();
+            coinSum.stakes = Big(coinSum.stakes).plus(1).toString();
+            coinSumsByDay[date] = coinSum;
+        }
+        //based on the timestamp we can now easily order the keys
+        var orderedSums = {};
+        Object.keys(coinSumsByDay).sort().forEach(function(key) {
+            orderedSums[key] = coinSumsByDay[key];
+        });
+        //now we need to group the key by day (until now theyre grouped by second)
+        coinSumsByDay = {};
+        Object.keys(orderedSums).forEach(function(key, index) {
+            var newDateFormat = moment.unix(key).format("MMM, Do YYYY");
+            if(coinSumsByDay[newDateFormat] === undefined){
+                //coin must be created
+                coinSumsByDay[newDateFormat] = {
+                    sum: 0,
+                    stakes: 0
+                };
+            }
+            var coinSum = coinSumsByDay[newDateFormat];
+            coinSum.sum = orderedSums[key].sum,
+            coinSum.stakes = orderedSums[key].stakes
+            coinSumsByDay[newDateFormat] = coinSum;
+        });
+
+        var ctx = document.getElementById(coin + '-target').getContext('2d');
+        var labels = [];
+        var data = [];
+        Object.keys(coinSumsByDay).forEach(function(key,index) {
+            var entry = coinSumsByDay[key];
+            labels.push(key);
+            data.push(entry.sum);
+        });
+
+        var chart = new Chart(ctx, {
+            // The type of chart we want to create
+            type: 'bar',
+        
+            // The data for our dataset
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: coin,
+                    backgroundColor: 'rgb(255, 99, 132)',
+                    borderColor: 'rgb(255, 99, 132)',
+                    data: data,
+                }]
+            },
+        
+            // Configuration options go here
+            options: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: false
+                }
+            }
+        });
+    }
+
+    /**
+     * loops through all affiliates and displays an icoin of each coin they
+     * are staking right under their username
+     */
     function displayCoinsperReferrer(){
         for(var i = 0; i < affiliateTableRows.length; i ++){
             var currentRow = affiliateTableRows[i];

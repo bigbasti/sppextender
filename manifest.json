@@ -2,7 +2,7 @@
   "manifest_version": 2,
  
   "name": "SPP Extender",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Provides additional functionality for the SimplePosPool website",
 
   "icons": { "16": "calc_16.png",
@@ -16,7 +16,7 @@
  
   "content_scripts": [{
     "css": ["content.css", "DataTables/datatables.min.css"],
-    "js": ["jquery-3.3.1.min.js", "big.min.js", "loader.js", "moment.js", "content.js", "DataTables/datatables.min.js"],
+    "js": ["jquery-3.3.1.min.js", "big.min.js", "chart.js", "moment.js", "content.js", "DataTables/datatables.min.js"],
     "matches": ["https://simplepospool.com/*"],
     "run_at": "document_end"
   }]
