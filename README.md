@@ -11,6 +11,8 @@ Features
 - Display a warning in the sum overview if wrongly calculated comissions were detected
 - Calculate total earned coin throug referrals across all your affiliates
 - Extends the affiliate overview and shows which affiliate stakes which coins (and who is inactive)
+- calculates the value of the coins you earned through referrals
+- display all comissions for a coin in a history graph grouped by day
 - more to come...
 
 Installation
